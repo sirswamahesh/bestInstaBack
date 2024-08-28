@@ -1,27 +1,32 @@
-'use strict';
+"use strict";
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.createTable('conversations', {
+    await queryInterface.createTable("conversations", {
       id: {
         type: Sequelize.UUID,
         defaultValue: Sequelize.UUIDV4,
+        allowNull: false,
         primaryKey: true,
       },
-      createdAt: {
+      participants: {
+        type: Sequelize.ARRAY(Sequelize.UUID),
         allowNull: false,
+      },
+      createdAt: {
         type: Sequelize.DATE,
+        allowNull: false,
         defaultValue: Sequelize.NOW,
       },
       updatedAt: {
-        allowNull: false,
         type: Sequelize.DATE,
-        defaultValue: Sequelize.NOW,
+        allowNull: false,
+        defaultValue: Sequelize.Now,
       },
     });
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.dropTable('conversations');
-  }
+    await queryInterface.dropTable("conversations");
+  },
 };

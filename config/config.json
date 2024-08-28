@@ -1,10 +1,10 @@
 {
   "development": {
-    "username": "root",
-    "password": null,
+    "username": "mahesh",
+    "password": "12345678",
     "database": "instagram",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "dialect": "postgres"
   },
   "test": {
     "username": "root",

@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const getDataUri = require("../utils/datauri");
 const cloudinary = require("../utils/cloudinary");
-const { Sequelize } = require("sequelize");
+const { Sequelize, where } = require("sequelize");
 const register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -14,11 +14,11 @@ const register = async (req, res) => {
       });
     }
 
-    const user = await db.User.findOne({ 
-      where:{
-        email
-      }
-     });
+    const user = await db.User.findOne({
+      where: {
+        email,
+      },
+    });
     if (user) {
       return res.status(401).json({
         message: "Try different email",
@@ -49,7 +49,28 @@ const login = async (req, res) => {
         success: false,
       });
     }
-    let user = await db.User.findOne({ email });
+    const user = await db.User.findOne({
+      where: { email },
+
+      include: [
+        {
+          model: db.Post,
+          as: "posts",
+          order: [["createdAt", "DESC"]],
+        },
+        {
+          model: db.Bookmark,
+          as: "bookmarks",
+          include: [
+            {
+              model: db.Post,
+              as: "post",
+            },
+          ],
+        },
+      ],
+    });
+    console.log(user);
     if (!user) {
       return res.status(401).json({
         message: "User not exists",
@@ -63,24 +84,14 @@ const login = async (req, res) => {
         success: false,
       });
     }
-
+    const formattedUser = {
+      ...user.toJSON(),
+      password: undefined,
+      bookmarks: user.bookmarks.map((bookmark) => bookmark.post),
+    };
     const token = jwt.sign({ userId: user.id }, process.env.SECRET_KEY, {
       expiresIn: "1d",
     });
-    const posts = await db.Post.findAll({ authorId: user.id });
-    const bookmarks = await db.Bookmark.findAll({ userId: user.id });
-
-    user = {
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      profilePicture: user.profilePicture,
-      bio: user.bio,
-      // followers: user.followers,
-      // following: user.following, ye baki hai
-      posts,
-      bookmarks,
-    };
     res
       .cookie("token", token, {
         httpOnly: true,
@@ -89,7 +100,7 @@ const login = async (req, res) => {
       .json({
         message: `Welcome back ${user.username}`,
         success: true,
-        user,
+        user: formattedUser,
       });
   } catch (error) {
     console.log(error);
@@ -122,12 +133,25 @@ const getProfile = async (req, res) => {
         {
           model: db.Bookmark,
           as: "bookmarks",
+          // attributes: {
+          //   include: ["posts"],
+          // },
+
+          include: [
+            {
+              model: db.Post,
+              as: "post",
+            },
+          ],
         },
       ],
     });
-
+    const formattedUser = {
+      ...user.toJSON(),
+      bookmarks: user.bookmarks.map((bookmark) => bookmark.post),
+    };
     return res.status(200).json({
-      user,
+      user: formattedUser,
       success: true,
     });
   } catch (error) {
@@ -178,10 +202,10 @@ const getSuggestedUsers = async (req, res) => {
     const suggestedUsers = await db.User.findAll({
       where: {
         id: {
-          [Sequelize.Op.ne]: req.id, 
+          [Sequelize.Op.ne]: req.id,
         },
       },
-      attributes: { exclude: ['password'] }, 
+      attributes: { exclude: ["password"] },
     });
     if (suggestedUsers.length <= 0) {
       return res.status(400).json({
@@ -197,62 +221,69 @@ const getSuggestedUsers = async (req, res) => {
   }
 };
 
-const followOrUnfollow = async (req, res) => {
-  try {
-    const followKrneWala = req.id; // test
-    const jiskoFollowKrunga = req.params.id; // mahesh
+// const followOrUnfollow = async (req, res) => {
+//   try {
+//     const followKrneWala = req.id; // test
+//     const jiskoFollowKrunga = req.params.id; // mahesh
 
-    if (followKrneWala === jiskoFollowKrunga) {
-      return res.status(400).json({
-        message: "You cannot follow/unfollow yourself",
-        success: false,
-      });
-    }
+//     if (followKrneWala === jiskoFollowKrunga) {
+//       return res.status(400).json({
+//         message: "You cannot follow/unfollow yourself",
+//         success: false,
+//       });
+//     }
 
-    const user = await User.findById(followKrneWala);
-    const targetUser = await User.findById(jiskoFollowKrunga);
+//     const user = await User.findById(followKrneWala);
+//     const targetUser = await User.findById(jiskoFollowKrunga);
 
-    if (!user || !targetUser) {
-      return res.status(400).json({
-        message: "User not found",
-        success: false,
-      });
-    }
-    // mai check krunga ki follow krna hai ya unfollow
-    const isFollowing = user.following.includes(jiskoFollowKrunga);
-    if (isFollowing) {
-      // unfollow logic ayega
-      await Promise.all([
-        User.updateOne(
-          { _id: followKrneWala },
-          { $pull: { following: jiskoFollowKrunga } }
-        ),
-        User.updateOne(
-          { _id: jiskoFollowKrunga },
-          { $pull: { followers: followKrneWala } }
-        ),
-      ]);
-      return res
-        .status(200)
-        .json({ message: "Unfollowed successfully", success: true });
-    } else {
-      // follow logic ayega
-      await Promise.all([
-        User.updateOne(
-          { _id: followKrneWala },
-          { $push: { following: jiskoFollowKrunga } }
-        ),
-        User.updateOne(
-          { _id: jiskoFollowKrunga },
-          { $push: { followers: followKrneWala } }
-        ),
-      ]);
-      return res
-        .status(200)
-        .json({ message: "followed successfully", success: true });
-    }
-  } catch (error) {
-    console.log(error);
-  }
+//     if (!user || !targetUser) {
+//       return res.status(400).json({
+//         message: "User not found",
+//         success: false,
+//       });
+//     }
+//     // mai check krunga ki follow krna hai ya unfollow
+//     const isFollowing = user.following.includes(jiskoFollowKrunga);
+//     if (isFollowing) {
+//       // unfollow logic ayega
+//       await Promise.all([
+//         User.updateOne(
+//           { _id: followKrneWala },
+//           { $pull: { following: jiskoFollowKrunga } }
+//         ),
+//         User.updateOne(
+//           { _id: jiskoFollowKrunga },
+//           { $pull: { followers: followKrneWala } }
+//         ),
+//       ]);
+//       return res
+//         .status(200)
+//         .json({ message: "Unfollowed successfully", success: true });
+//     } else {
+//       // follow logic ayega
+//       await Promise.all([
+//         User.updateOne(
+//           { _id: followKrneWala },
+//           { $push: { following: jiskoFollowKrunga } }
+//         ),
+//         User.updateOne(
+//           { _id: jiskoFollowKrunga },
+//           { $push: { followers: followKrneWala } }
+//         ),
+//       ]);
+//       return res
+//         .status(200)
+//         .json({ message: "followed successfully", success: true });
+//     }
+//   } catch (error) {
+//     console.log(error);
+//   }
+// };
+module.exports = {
+  register,
+  login,
+  logout,
+  getProfile,
+  editProfile,
+  getSuggestedUsers,
 };
-module.exports = { register, login, logout, getProfile, editProfile,getSuggestedUsers };
