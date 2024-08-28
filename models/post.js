@@ -10,6 +10,14 @@ module.exports = (sequelize) => {
           foreignKey: 'authorId',
           as: 'author',
         });
+        Post.hasMany(models.Comment, {
+          foreignKey: 'postId',
+          as: 'comments',
+        });
+        Post.hasMany(models.PostLike, {
+          foreignKey: 'postId',
+          as: 'likes',
+        });
       }
   }
 
